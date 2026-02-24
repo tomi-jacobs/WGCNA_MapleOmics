@@ -1,0 +1,143 @@
+---
+title: "TOMI J"
+output: html_document
+date: "2023-02-01"
+---
+```{r}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("apeglm")
+```
+
+
+```{r}
+library('DESeq2')
+library("pheatmap")
+library(ggplot2)
+library(reshape2)
+library(scales)
+library("rgl")  
+library("genefilter")  # for rowVars()
+require(stringr) # for str_sub()
+library(apeglm)
+```
+
+```{r}
+# setwd('/Users/tomi/Downloads')
+
+cts = as.matrix(read.delim('Gene_level_counts_sugarmaple.txt',row.names="gene_id"))
+coldata = read.delim('SugarMapleSampleInfo.txt',row.names=1)
+coldata$condition = factor(coldata$condition)
+
+
+head(cts,2)
+coldata
+
+dds <- DESeqDataSetFromMatrix(countData = cts,colData = coldata,design = ~ condition)
+dds
+dds$condition
+dds$condition <- factor(dds$condition, levels = c("ctrl","07d","14d","21d"))
+dds <- DESeq(dds)
+
+res <- results(dds)
+resultsNames(dds)
+resOrdered <- res[order(res$pvalue),]
+summary(res)
+head(resOrdered,12)
+plotMA(res, ylim=c(-10,10))
+```
+
+
+
+```{r}
+library('DESeq2')
+library("pheatmap")
+library(ggplot2)
+library(reshape2)
+library(scales)
+library("rgl")  
+library("genefilter")  # for rowVars()
+require(stringr) # for str_sub()
+library(apeglm)
+
+cts = as.matrix(read.delim('Gene_level_counts_sugarmaple.txt',row.names="gene_id"))
+coldata = read.delim('SugarMapleSampleInfo.txt',row.names=1)
+coldata$condition = factor(coldata$condition)
+
+
+head(cts,2)
+coldata
+
+dds <- DESeqDataSetFromMatrix(countData = cts,colData = coldata,design = ~ condition)
+dim(dds)
+```
+
+
+```{r}
+#picking out rows with sum of counts greater than 80 --80 divided by 16=5
+#5 per sample
+dds <- dds[rowSums(counts(dds)) >= 80, ]
+dim(dds)
+```
+
+
+
+```{r}
+vsd <- varianceStabilizingTransformation(dds, blind = FALSE)
+plotPCA(vsd, intgroup = c('condition'), returnData = FALSE)
+```
+
+
+
+```{r}
+write.table(assay(vsd), file = 'SMGenecountsVarStabTr.txt', row.names = TRUE, col.names = TRUE, sep = "\t")
+```
+
+
+```{r}
+#variance stabilized, normalizing variance
+library(doParallel)
+registerDoParallel(cores=20)
+library(WGCNA)
+enableWGCNAThreads()
+options(stringsAsFactors = FALSE)
+SM <- read.delim('SMGenecountsVarStabTr.txt')
+datExpr <- as.data.frame(t(SM))
+```
+
+
+```{r}
+powers = c(c(1:10), seq(from = 12, to=20, by=2))
+sft = pickSoftThreshold(datExpr, powerVector = powers, verbose = 5)
+sizeGrWindow(9, 5)
+par(mfrow = c(1,2));
+cex1 = 0.9;
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     xlab="Soft Threshold (power)",ylab="Scale Free Topology Model Fit,signed R^2",type="n",
+     main = paste("Scale independence"));
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     labels=powers,cex=cex1,col="red");
+# this line corresponds to using an R^2 cut-off of h
+abline(h=0.90,col="red")
+# Mean connectivity as a function of the soft-thresholding power
+plot(sft$fitIndices[,1], sft$fitIndices[,5],
+     xlab="Soft Threshold (power)",ylab="Mean Connectivity", type="n",
+     main = paste("Mean connectivity"))
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red")
+```
+
+```{r}
+enableWGCNAThreads()
+softPower = 5;
+adjacency = adjacency(datExpr, power = softPower);
+```
+
+
+```{r}
+# Turn adjacency into topological overlap
+enableWGCNAThreads()
+TOM = TOMsimilarity(adjacency);
+dissTOM = 1-TOM
+```
+
