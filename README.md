@@ -64,5 +64,3 @@ BiocManager::install(c("DESeq2", "apeglm", "genefilter", "WGCNA"))
 ## Usage
 Open `WGCNA_forMapleTranscriptomics.rmd` in RStudio and knit the document, or run each code chunk sequentially. Make sure all input files are in the same working directory as the `.rmd` file.
 
-## Author
-Tomi J — 2023
